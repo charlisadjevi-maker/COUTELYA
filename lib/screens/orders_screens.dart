@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../catalogs.dart';
 import '../core/app_theme.dart';
 import '../models.dart';
 import '../repositories.dart';
@@ -68,29 +69,26 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         },
                         child: Padding(
                           padding: const EdgeInsets.all(14),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(children: [
-                                Expanded(child: Text(order.reference, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16))),
-                                AppStatusChip(status: order.status),
-                              ]),
-                              const SizedBox(height: 8),
-                              Text(order.garmentType, style: const TextStyle(fontWeight: FontWeight.w800)),
-                              const SizedBox(height: 4),
-                              Text(client?.fullName ?? 'Client', style: const TextStyle(color: CoutelyaColors.muted)),
-                              const SizedBox(height: 10),
-                              Row(children: [
-                                const Icon(Icons.payments_outlined, size: 17, color: CoutelyaColors.green),
-                                const SizedBox(width: 5),
-                                Text(formatMoney(order.totalAmount), style: const TextStyle(fontWeight: FontWeight.w800)),
-                                const Spacer(),
-                                const Icon(Icons.event_outlined, size: 17, color: CoutelyaColors.muted),
-                                const SizedBox(width: 5),
-                                Text(formatDate(order.deliveryDate), style: const TextStyle(color: CoutelyaColors.muted, fontSize: 12.5)),
-                              ]),
-                            ],
-                          ),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Row(children: [
+                              Expanded(child: Text(order.reference, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16))),
+                              AppStatusChip(status: order.status),
+                            ]),
+                            const SizedBox(height: 8),
+                            Text(order.garmentType, style: const TextStyle(fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 4),
+                            Text(client?.fullName ?? 'Client', style: const TextStyle(color: CoutelyaColors.muted)),
+                            const SizedBox(height: 10),
+                            Row(children: [
+                              const Icon(Icons.payments_outlined, size: 17, color: CoutelyaColors.green),
+                              const SizedBox(width: 5),
+                              Text(formatMoney(order.totalAmount), style: const TextStyle(fontWeight: FontWeight.w800)),
+                              const Spacer(),
+                              const Icon(Icons.event_outlined, size: 17, color: CoutelyaColors.muted),
+                              const SizedBox(width: 5),
+                              Text(formatDate(order.deliveryDate), style: const TextStyle(color: CoutelyaColors.muted, fontSize: 12.5)),
+                            ]),
+                          ]),
                         ),
                       ),
                     );
@@ -126,6 +124,9 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
   final notes = TextEditingController();
   late Future<List<Client>> clients = clientRepo.search();
   String? clientId;
+  String? garmentChoice;
+  String? fabricChoice;
+  String? colorChoice;
   DateTime? fittingDate;
   DateTime? deliveryDate;
   bool saving = false;
@@ -160,6 +161,45 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
         deliveryDate = picked;
       }
     });
+  }
+
+  void _selectCatalogValue(String? value, TextEditingController controller, void Function(String?) setChoice) {
+    setState(() {
+      setChoice(value);
+      if (value == null || value == customCatalogOption) {
+        controller.clear();
+      } else {
+        controller.text = value;
+      }
+    });
+  }
+
+  Widget _catalogField({
+    required String label,
+    required List<String> options,
+    required String? choice,
+    required TextEditingController controller,
+    required void Function(String?) setChoice,
+    bool required = false,
+  }) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      DropdownButtonFormField<String>(
+        initialValue: choice,
+        decoration: InputDecoration(labelText: label),
+        isExpanded: true,
+        items: options.map((e) => DropdownMenuItem(value: e, child: Text(e, overflow: TextOverflow.ellipsis))).toList(),
+        onChanged: (v) => _selectCatalogValue(v, controller, setChoice),
+        validator: required ? (v) => v == null ? 'Choisissez une option' : null : null,
+      ),
+      if (choice == customCatalogOption) ...[
+        const SizedBox(height: 9),
+        TextFormField(
+          controller: controller,
+          decoration: InputDecoration(labelText: '$label personnalisé'),
+          validator: required ? (v) => v == null || v.trim().isEmpty ? 'Précisez votre choix' : null : null,
+        ),
+      ],
+    ]);
   }
 
   Future<void> save() async {
@@ -200,19 +240,27 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                 return DropdownButtonFormField<String>(
                   initialValue: rows.any((c) => c.id == clientId) ? clientId : null,
                   decoration: const InputDecoration(labelText: 'Client'),
-                  items: rows.map((c) => DropdownMenuItem(value: c.id, child: Text(c.fullName))).toList(),
+                  isExpanded: true,
+                  items: rows.map((c) => DropdownMenuItem(value: c.id, child: Text(c.fullName, overflow: TextOverflow.ellipsis))).toList(),
                   onChanged: (v) => setState(() => clientId = v),
                 );
               },
             ),
             const SizedBox(height: 12),
-            TextFormField(controller: garment, decoration: const InputDecoration(labelText: 'Modèle / type de vêtement', hintText: 'Robe longue évasée'), validator: (v) => v == null || v.trim().isEmpty ? 'Champ requis' : null),
+            _catalogField(
+              label: 'Modèle / type de vêtement',
+              options: garmentModels,
+              choice: garmentChoice,
+              controller: garment,
+              setChoice: (v) => garmentChoice = v,
+              required: true,
+            ),
             const SizedBox(height: 12),
             TextField(controller: description, maxLines: 2, decoration: const InputDecoration(labelText: 'Description / manches / détails')),
             const SizedBox(height: 12),
-            TextField(controller: fabric, decoration: const InputDecoration(labelText: 'Tissu', hintText: 'Wax imprimé')),
+            _catalogField(label: 'Tissu', options: fabricTypes, choice: fabricChoice, controller: fabric, setChoice: (v) => fabricChoice = v),
             const SizedBox(height: 12),
-            TextField(controller: color, decoration: const InputDecoration(labelText: 'Couleur', hintText: 'Bleu et jaune')),
+            _catalogField(label: 'Couleur', options: fabricColors, choice: colorChoice, controller: color, setChoice: (v) => colorChoice = v),
             const SizedBox(height: 12),
             TextFormField(controller: total, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Prix total', suffixText: 'FCFA'), validator: (v) => (double.tryParse((v ?? '').replaceAll(' ', '').replaceAll(',', '.')) ?? 0) <= 0 ? 'Montant requis' : null),
             const SizedBox(height: 12),
@@ -239,7 +287,11 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
         child: Container(
           padding: const EdgeInsets.all(13),
           decoration: BoxDecoration(color: Colors.white, border: Border.all(color: CoutelyaColors.border), borderRadius: BorderRadius.circular(12)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 12, color: CoutelyaColors.muted)), const SizedBox(height: 7), Row(children: [const Icon(Icons.event_outlined, size: 18, color: CoutelyaColors.purple), const SizedBox(width: 5), Expanded(child: Text(formatDate(value), style: const TextStyle(fontWeight: FontWeight.w800)))] )]),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, style: const TextStyle(fontSize: 12, color: CoutelyaColors.muted)),
+            const SizedBox(height: 7),
+            Row(children: [const Icon(Icons.event_outlined, size: 18, color: CoutelyaColors.purple), const SizedBox(width: 5), Expanded(child: Text(formatDate(value), style: const TextStyle(fontWeight: FontWeight.w800)))]),
+          ]),
         ),
       );
 }
@@ -289,42 +341,33 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     children: [
                       Row(children: [Expanded(child: Text(o.reference, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900))), AppStatusChip(status: o.status)]),
                       const SizedBox(height: 18),
-                      Card(
-                        child: Column(children: [
-                          _detail('Client', c?.fullName ?? '—'),
-                          const Divider(height: 1),
-                          _detail('Modèle', o.garmentType),
-                          const Divider(height: 1),
-                          _detail('Description', o.description ?? '—'),
-                          const Divider(height: 1),
-                          _detail('Tissu', o.fabric ?? '—'),
-                          const Divider(height: 1),
-                          _detail('Couleur', o.color ?? '—'),
-                        ]),
-                      ),
+                      Card(child: Column(children: [
+                        _detail('Client', c?.fullName ?? '—'),
+                        const Divider(height: 1),
+                        _detail('Modèle', o.garmentType),
+                        const Divider(height: 1),
+                        _detail('Description', o.description ?? '—'),
+                        const Divider(height: 1),
+                        _detail('Tissu', o.fabric ?? '—'),
+                        const Divider(height: 1),
+                        _detail('Couleur', o.color ?? '—'),
+                      ])),
                       const SizedBox(height: 14),
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(children: [
-                            _money('Prix total', o.totalAmount, CoutelyaColors.ink),
-                            const SizedBox(height: 10),
-                            _money('Avance / payé', paid, CoutelyaColors.green),
-                            const Divider(height: 22),
-                            _money('Reste à payer', balance, balance > 0 ? CoutelyaColors.red : CoutelyaColors.green),
-                          ]),
-                        ),
-                      ),
+                      Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
+                        _money('Prix total', o.totalAmount, CoutelyaColors.ink),
+                        const SizedBox(height: 10),
+                        _money('Avance / payé', paid, CoutelyaColors.green),
+                        const Divider(height: 22),
+                        _money('Reste à payer', balance, balance > 0 ? CoutelyaColors.red : CoutelyaColors.green),
+                      ]))),
                       const SizedBox(height: 14),
-                      Card(
-                        child: Column(children: [
-                          _detail('Date de commande', formatDate(o.orderDate)),
-                          const Divider(height: 1),
-                          _detail('Essayage prévu', formatDate(o.fittingDate)),
-                          const Divider(height: 1),
-                          _detail('Livraison prévue', formatDate(o.deliveryDate)),
-                        ]),
-                      ),
+                      Card(child: Column(children: [
+                        _detail('Date de commande', formatDate(o.orderDate)),
+                        const Divider(height: 1),
+                        _detail('Essayage prévu', formatDate(o.fittingDate)),
+                        const Divider(height: 1),
+                        _detail('Livraison prévue', formatDate(o.deliveryDate)),
+                      ])),
                       const SizedBox(height: 18),
                       FilledButton.icon(
                         onPressed: () async {
@@ -416,15 +459,16 @@ class _ProductionTrackingScreenState extends State<ProductionTrackingScreen> {
             final color = done ? statusColor(s) : const Color(0xFFC9C3CC);
             return IntrinsicHeight(
               child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                SizedBox(
-                  width: 38,
-                  child: Column(children: [
-                    Container(width: active ? 24 : 20, height: active ? 24 : 20, decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3), boxShadow: active ? [BoxShadow(color: color.withValues(alpha: 0.25), blurRadius: 8)] : null), child: done ? const Icon(Icons.check, color: Colors.white, size: 12) : null),
-                    if (i < statuses.length - 1) Expanded(child: Container(width: 3, color: done && i < current ? statusColor(statuses[i + 1]) : const Color(0xFFE0DCE2))),
-                  ]),
-                ),
+                SizedBox(width: 38, child: Column(children: [
+                  Container(width: active ? 24 : 20, height: active ? 24 : 20, decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3), boxShadow: active ? [BoxShadow(color: color.withValues(alpha: 0.25), blurRadius: 8)] : null), child: done ? const Icon(Icons.check, color: Colors.white, size: 12) : null),
+                  if (i < statuses.length - 1) Expanded(child: Container(width: 3, color: done && i < current ? statusColor(statuses[i + 1]) : const Color(0xFFE0DCE2))),
+                ])),
                 const SizedBox(width: 10),
-                Expanded(child: Padding(padding: const EdgeInsets.only(bottom: 23), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(statusLabel(s), style: TextStyle(fontWeight: FontWeight.w900, color: done ? CoutelyaColors.ink : CoutelyaColors.muted)), const SizedBox(height: 4), Text(active ? 'Étape actuelle' : done ? 'Terminée' : 'En attente', style: TextStyle(color: active ? CoutelyaColors.purple : CoutelyaColors.muted, fontSize: 12))]))),
+                Expanded(child: Padding(padding: const EdgeInsets.only(bottom: 23), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(statusLabel(s), style: TextStyle(fontWeight: FontWeight.w900, color: done ? CoutelyaColors.ink : CoutelyaColors.muted)),
+                  const SizedBox(height: 4),
+                  Text(active ? 'Étape actuelle' : done ? 'Terminée' : 'En attente', style: TextStyle(color: active ? CoutelyaColors.purple : CoutelyaColors.muted, fontSize: 12)),
+                ]))),
               ]),
             );
           }),
@@ -522,18 +566,13 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
             children: [
               Text(widget.order.reference, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
               const SizedBox(height: 14),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(children: [
-                    _row('Total', widget.order.totalAmount, CoutelyaColors.ink),
-                    const SizedBox(height: 10),
-                    _row('Déjà payé', paid, CoutelyaColors.green),
-                    const Divider(height: 24),
-                    _row('Reste à payer', remaining, remaining > 0 ? CoutelyaColors.red : CoutelyaColors.green),
-                  ]),
-                ),
-              ),
+              Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
+                _row('Total', widget.order.totalAmount, CoutelyaColors.ink),
+                const SizedBox(height: 10),
+                _row('Déjà payé', paid, CoutelyaColors.green),
+                const Divider(height: 24),
+                _row('Reste à payer', remaining, remaining > 0 ? CoutelyaColors.red : CoutelyaColors.green),
+              ]))),
               const SizedBox(height: 14),
               FilledButton.icon(onPressed: addPayment, icon: const Icon(Icons.add_rounded), label: const Text('Nouveau paiement')),
               const SizedBox(height: 20),
@@ -542,10 +581,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
               if (rows.isEmpty)
                 const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('Aucun paiement enregistré.', style: TextStyle(color: CoutelyaColors.muted))))
               else
-                ...rows.map((p) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Card(child: ListTile(leading: const Icon(Icons.payments_rounded, color: CoutelyaColors.green), title: Text(formatMoney(p.amount), style: const TextStyle(fontWeight: FontWeight.w900)), subtitle: Text('${_method(p.method)} • ${formatDate(p.paidAt)}'))),
-                    )),
+                ...rows.map((p) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Card(child: ListTile(leading: const Icon(Icons.payments_rounded, color: CoutelyaColors.green), title: Text(formatMoney(p.amount), style: const TextStyle(fontWeight: FontWeight.w900)), subtitle: Text('${_method(p.method)} • ${formatDate(p.paidAt)}'))))),
             ],
           );
         },

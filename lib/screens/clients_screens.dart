@@ -51,55 +51,46 @@ class _ClientsScreenState extends State<ClientsScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
-        child: Column(
-          children: [
-            TextField(
-              controller: searchController,
-              onChanged: search,
-              decoration: const InputDecoration(prefixIcon: Icon(Icons.search_rounded), hintText: 'Rechercher un client'),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: FutureBuilder<List<Client>>(
-                future: clients,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                  final rows = snapshot.data ?? const <Client>[];
-                  if (rows.isEmpty) {
-                    return const EmptyState(icon: Icons.people_outline, title: 'Aucun client', subtitle: 'Ajoutez votre premier client pour commencer à gérer ses mesures et commandes.');
-                  }
-                  return ListView.separated(
-                    itemCount: rows.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final client = rows[index];
-                      return Card(
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                          leading: CircleAvatar(
-                            backgroundColor: CoutelyaColors.purpleSoft,
-                            foregroundColor: CoutelyaColors.purple,
-                            child: Text(client.fullName.isEmpty ? '?' : client.fullName[0].toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900)),
-                          ),
-                          title: Text(client.fullName, style: const TextStyle(fontWeight: FontWeight.w900)),
-                          subtitle: Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(client.phone?.isNotEmpty == true ? client.phone! : 'Sans téléphone', style: const TextStyle(color: CoutelyaColors.muted)),
-                          ),
-                          trailing: const Icon(Icons.chevron_right_rounded),
-                          onTap: () async {
-                            await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ClientDetailScreen(clientId: client.id)));
-                            if (mounted) search(searchController.text);
-                          },
+        child: Column(children: [
+          TextField(controller: searchController, onChanged: search, decoration: const InputDecoration(prefixIcon: Icon(Icons.search_rounded), hintText: 'Rechercher un client')),
+          const SizedBox(height: 12),
+          Expanded(
+            child: FutureBuilder<List<Client>>(
+              future: clients,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                final rows = snapshot.data ?? const <Client>[];
+                if (rows.isEmpty) {
+                  return const EmptyState(icon: Icons.people_outline, title: 'Aucun client', subtitle: 'Ajoutez votre premier client pour commencer à gérer ses mesures et commandes.');
+                }
+                return ListView.separated(
+                  itemCount: rows.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final client = rows[index];
+                    return Card(
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        leading: CircleAvatar(
+                          backgroundColor: CoutelyaColors.purpleSoft,
+                          foregroundColor: CoutelyaColors.purple,
+                          child: Text(client.fullName.isEmpty ? '?' : client.fullName[0].toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900)),
                         ),
-                      );
-                    },
-                  );
-                },
-              ),
+                        title: Text(client.fullName, style: const TextStyle(fontWeight: FontWeight.w900)),
+                        subtitle: Padding(padding: const EdgeInsets.only(top: 4), child: Text(client.phone?.isNotEmpty == true ? client.phone! : 'Sans téléphone', style: const TextStyle(color: CoutelyaColors.muted))),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () async {
+                          await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ClientDetailScreen(clientId: client.id)));
+                          if (mounted) search(searchController.text);
+                        },
+                      ),
+                    );
+                  },
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ]),
       ),
     );
   }
@@ -260,14 +251,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                 tabs: [Tab(text: 'Infos'), Tab(text: 'Mesures'), Tab(text: 'Commandes'), Tab(text: 'Paiements')],
               ),
             ),
-            body: TabBarView(
-              children: [
-                _info(c),
-                _measurements(c),
-                _orders(c),
-                _payments(c),
-              ],
-            ),
+            body: TabBarView(children: [_info(c), _measurements(c), _orders(c), _payments(c)]),
           ),
         );
       },
@@ -277,30 +261,21 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
   Widget _info(Client c) => ListView(
         padding: const EdgeInsets.all(18),
         children: [
-          Center(
-            child: CircleAvatar(
-              radius: 42,
-              backgroundColor: CoutelyaColors.purpleSoft,
-              foregroundColor: CoutelyaColors.purple,
-              child: Text(c.fullName.isEmpty ? '?' : c.fullName[0].toUpperCase(), style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900)),
-            ),
-          ),
+          Center(child: CircleAvatar(radius: 42, backgroundColor: CoutelyaColors.purpleSoft, foregroundColor: CoutelyaColors.purple, child: Text(c.fullName.isEmpty ? '?' : c.fullName[0].toUpperCase(), style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900)))),
           const SizedBox(height: 18),
           Center(child: Text(c.fullName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900))),
           const SizedBox(height: 24),
-          Card(
-            child: Column(children: [
-              _line(Icons.phone_outlined, 'Téléphone', c.phone),
-              const Divider(height: 1),
-              _line(Icons.chat_outlined, 'WhatsApp', c.whatsapp),
-              const Divider(height: 1),
-              _line(Icons.mail_outline, 'E-mail', c.email),
-              const Divider(height: 1),
-              _line(Icons.location_on_outlined, 'Adresse', c.address),
-              const Divider(height: 1),
-              _line(Icons.notes_rounded, 'Notes', c.notes),
-            ]),
-          ),
+          Card(child: Column(children: [
+            _line(Icons.phone_outlined, 'Téléphone', c.phone),
+            const Divider(height: 1),
+            _line(Icons.chat_outlined, 'WhatsApp', c.whatsapp),
+            const Divider(height: 1),
+            _line(Icons.mail_outline, 'E-mail', c.email),
+            const Divider(height: 1),
+            _line(Icons.location_on_outlined, 'Adresse', c.address),
+            const Divider(height: 1),
+            _line(Icons.notes_rounded, 'Notes', c.notes),
+          ])),
           const SizedBox(height: 18),
           FilledButton.icon(
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NewOrderScreen(preselectedClientId: c.id))),
@@ -315,7 +290,11 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(icon, color: CoutelyaColors.purple, size: 21),
           const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(color: CoutelyaColors.muted, fontSize: 12)), const SizedBox(height: 4), Text(value?.trim().isNotEmpty == true ? value! : '—', style: const TextStyle(fontWeight: FontWeight.w700))])),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, style: const TextStyle(color: CoutelyaColors.muted, fontSize: 12)),
+            const SizedBox(height: 4),
+            Text(value?.trim().isNotEmpty == true ? value! : '—', style: const TextStyle(fontWeight: FontWeight.w700)),
+          ])),
         ]),
       );
 
@@ -335,7 +314,10 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
                   child: Column(
                     children: m.values.entries.where((e) => e.value != null).map((e) => Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                      child: Row(children: [Expanded(child: Text(_measurementLabel(e.key))), Text('${e.value!.toStringAsFixed(e.value! % 1 == 0 ? 0 : 1)} cm', style: const TextStyle(fontWeight: FontWeight.w900))]),
+                      child: Row(children: [
+                        Expanded(child: Text(_measurementLabel(e.key))),
+                        Text('${e.value!.toStringAsFixed(e.value! % 1 == 0 ? 0 : 1)} cm', style: const TextStyle(fontWeight: FontWeight.w900)),
+                      ]),
                     )).toList(),
                   ),
                 ),
@@ -391,6 +373,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
       );
 
   String _measurementLabel(String key) {
+    if (key.startsWith('custom:')) return key.substring(7);
     const labels = {
       'bust': 'Tour de poitrine',
       'waist': 'Tour de taille',
@@ -421,6 +404,18 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
   late final Map<String, TextEditingController> fields;
   final notes = TextEditingController();
 
+  static const standardLabels = <String, String>{
+    'bust': 'Tour de poitrine',
+    'waist': 'Tour de taille',
+    'hips': 'Tour de hanches',
+    'back': 'Longueur dos',
+    'shoulder': 'Longueur épaule',
+    'sleeve': 'Longueur manche',
+    'neck': 'Tour de cou',
+    'inseam': 'Entrejambe',
+    'thigh': 'Tour de cuisse',
+  };
+
   String _v(String key) {
     final v = widget.existing?.values[key];
     return v == null ? '' : v.toStringAsFixed(v % 1 == 0 ? 0 : 1);
@@ -431,16 +426,13 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
     super.initState();
     category = widget.existing?.category ?? (widget.client.gender ?? 'Femme');
     fields = {
-      'bust': TextEditingController(text: _v('bust')),
-      'waist': TextEditingController(text: _v('waist')),
-      'hips': TextEditingController(text: _v('hips')),
-      'back': TextEditingController(text: _v('back')),
-      'shoulder': TextEditingController(text: _v('shoulder')),
-      'sleeve': TextEditingController(text: _v('sleeve')),
-      'neck': TextEditingController(text: _v('neck')),
-      'inseam': TextEditingController(text: _v('inseam')),
-      'thigh': TextEditingController(text: _v('thigh')),
+      for (final key in standardLabels.keys) key: TextEditingController(text: _v(key)),
     };
+    for (final entry in widget.existing?.values.entries ?? const <MapEntry<String, double?>>[]) {
+      if (!standardLabels.containsKey(entry.key)) {
+        fields[entry.key] = TextEditingController(text: entry.value == null ? '' : entry.value!.toStringAsFixed(entry.value! % 1 == 0 ? 0 : 1));
+      }
+    }
     notes.text = widget.existing?.notes ?? '';
   }
 
@@ -453,6 +445,50 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
     super.dispose();
   }
 
+  String _labelFor(String key) => key.startsWith('custom:') ? key.substring(7) : (standardLabels[key] ?? key);
+
+  Future<void> _addCustomMeasurement() async {
+    final name = TextEditingController();
+    final value = TextEditingController();
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ajouter une mesure personnalisée'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: name, autofocus: true, decoration: const InputDecoration(labelText: 'Nom de la mesure', hintText: 'Ex. Longueur tunique')),
+          const SizedBox(height: 12),
+          TextField(controller: value, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Valeur', suffixText: 'cm')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
+          FilledButton(
+            onPressed: () {
+              if (name.text.trim().isEmpty) return;
+              Navigator.pop(context, {'name': name.text.trim(), 'value': value.text.trim()});
+            },
+            child: const Text('Ajouter'),
+          ),
+        ],
+      ),
+    );
+    name.dispose();
+    value.dispose();
+    if (result == null) return;
+    var key = 'custom:${result['name']}';
+    var suffix = 2;
+    while (fields.containsKey(key)) {
+      key = 'custom:${result['name']} ($suffix)';
+      suffix++;
+    }
+    setState(() => fields[key] = TextEditingController(text: result['value'] ?? ''));
+  }
+
+  void _removeCustomMeasurement(String key) {
+    final controller = fields.remove(key);
+    controller?.dispose();
+    setState(() {});
+  }
+
   Future<void> save() async {
     final values = fields.map((key, controller) => MapEntry(key, double.tryParse(controller.text.replaceAll(',', '.'))));
     await repo.save(clientId: widget.client.id, category: category, values: values, notes: notes.text);
@@ -462,10 +498,6 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final labels = <String, String>{
-      'bust': 'Tour de poitrine', 'waist': 'Tour de taille', 'hips': 'Tour de hanches', 'back': 'Longueur dos',
-      'shoulder': 'Longueur épaule', 'sleeve': 'Longueur manche', 'neck': 'Tour de cou', 'inseam': 'Entrejambe', 'thigh': 'Tour de cuisse',
-    };
     return Scaffold(
       appBar: AppBar(title: const Text('Mesures')),
       body: ListView(
@@ -480,11 +512,26 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
             children: ['Femme', 'Homme', 'Enfant'].map((e) => ChoiceChip(label: Text(e), selected: category == e, onSelected: (_) => setState(() => category = e))).toList(),
           ),
           const SizedBox(height: 18),
-          ...labels.entries.map((e) => Padding(
-                padding: const EdgeInsets.only(bottom: 11),
-                child: TextField(controller: fields[e.key], keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: e.value, suffixText: 'cm')),
-              )),
-          TextField(controller: notes, maxLines: 3, decoration: const InputDecoration(labelText: 'Notes')), 
+          ...fields.entries.map((e) {
+            final custom = e.key.startsWith('custom:');
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 11),
+              child: Row(children: [
+                Expanded(child: TextField(controller: e.value, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: _labelFor(e.key), suffixText: 'cm'))),
+                if (custom) ...[
+                  const SizedBox(width: 6),
+                  IconButton(tooltip: 'Supprimer cette mesure', onPressed: () => _removeCustomMeasurement(e.key), icon: const Icon(Icons.delete_outline_rounded, color: CoutelyaColors.red)),
+                ],
+              ]),
+            );
+          }),
+          OutlinedButton.icon(
+            onPressed: _addCustomMeasurement,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Ajouter une mesure personnalisée'),
+          ),
+          const SizedBox(height: 12),
+          TextField(controller: notes, maxLines: 3, decoration: const InputDecoration(labelText: 'Notes')),
           const SizedBox(height: 18),
           FilledButton.icon(onPressed: save, icon: const Icon(Icons.save_outlined), label: const Text('Enregistrer les mesures')),
         ],
