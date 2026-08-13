@@ -72,7 +72,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                   }
                   return ListView.separated(
                     itemCount: rows.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 6),
+                    separatorBuilder: (_, _) => const SizedBox(height: 6),
                     itemBuilder: (context, index) {
                       final client = rows[index];
                       return Card(
