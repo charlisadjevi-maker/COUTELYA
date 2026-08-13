@@ -366,7 +366,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
             separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemBuilder: (context, i) {
               final o = rows[i];
-              return Card(child: ListTile(title: Text(o.reference, style: const TextStyle(fontWeight: FontWeight.w900)), subtitle: Text(o.garmentType), trailing: AppStatusChip(status: o.status), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => OrderDetailScreen(orderId: o.id))));
+              return Card(child: ListTile(title: Text(o.reference, style: const TextStyle(fontWeight: FontWeight.w900)), subtitle: Text(o.garmentType), trailing: AppStatusChip(status: o.status), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => OrderDetailScreen(orderId: o.id)))));
             },
           );
         },
