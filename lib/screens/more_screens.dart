@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../catalogs.dart';
 import '../core/app_theme.dart';
 import '../models.dart';
 import '../repositories.dart';
@@ -129,7 +130,7 @@ class MoreScreen extends StatelessWidget {
             style: OutlinedButton.styleFrom(foregroundColor: CoutelyaColors.red, minimumSize: const Size.fromHeight(48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
           ),
           const SizedBox(height: 12),
-          const Center(child: Text('COUTELYA V0.2.0', style: TextStyle(color: CoutelyaColors.muted, fontSize: 12))),
+          const Center(child: Text('COUTELYA V0.2.2', style: TextStyle(color: CoutelyaColors.muted, fontSize: 12))),
         ],
       ),
     );
@@ -301,8 +302,76 @@ class WorkshopProfileScreen extends StatelessWidget {
   }
 }
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool notificationsEnabled = true;
+
+  Future<void> _language() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Langue de l’application',
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 10),
+              ListTile(
+                leading: const Icon(
+                  Icons.check_circle_rounded,
+                  color: CoutelyaColors.green,
+                ),
+                title: const Text('Français'),
+                subtitle: const Text('Langue active'),
+                onTap: () => Navigator.pop(context),
+              ),
+              const ListTile(
+                leading: Icon(Icons.translate_rounded, color: CoutelyaColors.muted),
+                title: Text('Autres langues'),
+                subtitle: Text('Prévues dans une prochaine version'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _tile({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    Widget? trailing,
+    VoidCallback? onTap,
+  }) {
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: CoutelyaColors.purpleSoft,
+          borderRadius: BorderRadius.circular(11),
+        ),
+        child: Icon(icon, color: CoutelyaColors.purple),
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+      subtitle: subtitle == null ? null : Text(subtitle),
+      trailing: trailing ?? const Icon(Icons.chevron_right_rounded),
+      onTap: onTap,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -310,10 +379,307 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Paramètres')),
       body: ListView(
         padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: Column(
+              children: [
+                _tile(
+                  icon: Icons.storefront_outlined,
+                  title: 'Mon atelier',
+                  subtitle: 'Informations et coordonnées',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const WorkshopProfileScreen(),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                _tile(
+                  icon: Icons.cloud_sync_outlined,
+                  title: 'Sauvegarde & synchronisation',
+                  subtitle: 'État des données locales et du Cloud',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const OfflineModeScreen()),
+                  ),
+                ),
+                const Divider(height: 1),
+                _tile(
+                  icon: Icons.straighten_rounded,
+                  title: 'Catégories de mesures',
+                  subtitle: 'Mesures standards et personnalisées',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const MeasurementSettingsScreen(),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                _tile(
+                  icon: Icons.checkroom_outlined,
+                  title: 'Modèles de commandes',
+                  subtitle: 'Vêtements, tissus et couleurs proposés',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const OrderCatalogSettingsScreen(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Column(
+              children: [
+                _tile(
+                  icon: Icons.notifications_none_rounded,
+                  title: 'Notifications',
+                  subtitle: notificationsEnabled ? 'Activées' : 'Désactivées',
+                  trailing: Switch(
+                    value: notificationsEnabled,
+                    onChanged: (value) =>
+                        setState(() => notificationsEnabled = value),
+                  ),
+                  onTap: () => setState(
+                    () => notificationsEnabled = !notificationsEnabled,
+                  ),
+                ),
+                const Divider(height: 1),
+                _tile(
+                  icon: Icons.language_rounded,
+                  title: 'Langue',
+                  subtitle: 'Français',
+                  trailing: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Français'),
+                      SizedBox(width: 4),
+                      Icon(Icons.chevron_right_rounded),
+                    ],
+                  ),
+                  onTap: _language,
+                ),
+                const Divider(height: 1),
+                _tile(
+                  icon: Icons.security_outlined,
+                  title: 'Sécurité',
+                  subtitle: 'Protection et stockage des données',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const SecuritySettingsScreen(),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                _tile(
+                  icon: Icons.info_outline_rounded,
+                  title: 'À propos de COUTELYA',
+                  subtitle: 'Version et informations de l’application',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const AboutCoutelyaScreen(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class MeasurementSettingsScreen extends StatelessWidget {
+  const MeasurementSettingsScreen({super.key});
+
+  static const labels = [
+    'Tour de poitrine',
+    'Tour de taille',
+    'Tour de hanches',
+    'Longueur dos',
+    'Longueur épaule',
+    'Longueur manche',
+    'Tour de cou',
+    'Entrejambe',
+    'Tour de cuisse',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Catégories de mesures')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(15),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.add_circle_outline_rounded, color: CoutelyaColors.purple),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Lors de la fiche d’un client, vous pouvez ajouter librement une mesure personnalisée en plus des mesures standards.',
+                      style: TextStyle(height: 1.35),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Mesures standards',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          ...labels.map(
+            (label) => Card(
+              child: ListTile(
+                leading: const Icon(
+                  Icons.straighten_rounded,
+                  color: CoutelyaColors.purple,
+                ),
+                title: Text(label),
+                trailing: const Text('cm'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class OrderCatalogSettingsScreen extends StatelessWidget {
+  const OrderCatalogSettingsScreen({super.key});
+
+  List<String> _withoutCustom(List<String> items) =>
+      items.where((item) => item != customCatalogOption).toList();
+
+  Widget _catalog(String title, IconData icon, List<String> values) => Card(
+        child: ExpansionTile(
+          leading: Icon(icon, color: CoutelyaColors.purple),
+          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+          subtitle: Text('${_withoutCustom(values).length} choix proposés'),
+          children: _withoutCustom(values)
+              .map(
+                (value) => ListTile(
+                  dense: true,
+                  leading: const SizedBox(width: 8),
+                  title: Text(value),
+                ),
+              )
+              .toList(),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Modèles de commandes')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(15),
+              child: Text(
+                'Ces listes sont proposées lors de la création ou de la modification d’une commande. Le choix « Autre / personnalisé » permet toujours une saisie libre.',
+                style: TextStyle(height: 1.35),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _catalog('Modèles de vêtements', Icons.checkroom_rounded, garmentModels),
+          _catalog('Types de tissus', Icons.texture_rounded, fabricTypes),
+          _catalog('Couleurs', Icons.palette_outlined, fabricColors),
+        ],
+      ),
+    );
+  }
+}
+
+class SecuritySettingsScreen extends StatelessWidget {
+  const SecuritySettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Sécurité')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
         children: const [
-          Card(child: Column(children: [ListTile(leading: Icon(Icons.storefront_outlined), title: Text('Mon atelier'), trailing: Icon(Icons.chevron_right)), Divider(height: 1), ListTile(leading: Icon(Icons.cloud_sync_outlined), title: Text('Sauvegarde & synchronisation'), trailing: Icon(Icons.chevron_right)), Divider(height: 1), ListTile(leading: Icon(Icons.straighten_rounded), title: Text('Catégories de mesures'), trailing: Icon(Icons.chevron_right)), Divider(height: 1), ListTile(leading: Icon(Icons.checkroom_outlined), title: Text('Modèles de commandes'), trailing: Icon(Icons.chevron_right))])),
-          SizedBox(height: 12),
-          Card(child: Column(children: [ListTile(leading: Icon(Icons.notifications_none_rounded), title: Text('Notifications'), trailing: Icon(Icons.chevron_right)), Divider(height: 1), ListTile(leading: Icon(Icons.language_rounded), title: Text('Langue'), trailing: Text('Français')), Divider(height: 1), ListTile(leading: Icon(Icons.security_outlined), title: Text('Sécurité'), trailing: Icon(Icons.chevron_right)), Divider(height: 1), ListTile(leading: Icon(Icons.info_outline_rounded), title: Text('À propos de COUTELYA'), trailing: Icon(Icons.chevron_right))])),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: Icon(Icons.phone_android_rounded, color: CoutelyaColors.purple),
+                  title: Text('Données locales'),
+                  subtitle: Text('Les données sont enregistrées dans la base locale de COUTELYA sur cet appareil.'),
+                ),
+                Divider(height: 1),
+                ListTile(
+                  leading: Icon(Icons.cloud_outlined, color: CoutelyaColors.purple),
+                  title: Text('Synchronisation Cloud'),
+                  subtitle: Text('Elle n’est utilisée que lorsqu’elle est configurée et activée.'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AboutCoutelyaScreen extends StatelessWidget {
+  const AboutCoutelyaScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('À propos de COUTELYA')),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: const [
+          Center(
+            child: CircleAvatar(
+              radius: 40,
+              backgroundColor: CoutelyaColors.purpleSoft,
+              child: Icon(Icons.checkroom_rounded, color: CoutelyaColors.purple, size: 38),
+            ),
+          ),
+          SizedBox(height: 15),
+          Center(
+            child: Text(
+              'COUTELYA',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+            ),
+          ),
+          SizedBox(height: 4),
+          Center(
+            child: Text(
+              'Votre atelier, simplement.',
+              style: TextStyle(color: CoutelyaColors.muted),
+            ),
+          ),
+          SizedBox(height: 22),
+          Card(
+            child: Column(
+              children: [
+                ListTile(title: Text('Version'), trailing: Text('0.2.2')),
+                Divider(height: 1),
+                ListTile(
+                  title: Text('Mode de fonctionnement'),
+                  trailing: Text('Offline-first'),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -336,7 +702,17 @@ class OfflineModeScreen extends StatelessWidget {
           const SizedBox(height: 12),
           const Text('Toutes vos données sont enregistrées localement sur votre téléphone. Elles pourront être synchronisées automatiquement lorsque la connexion Cloud sera activée.', textAlign: TextAlign.center, style: TextStyle(color: CoutelyaColors.muted, height: 1.5)),
           const SizedBox(height: 24),
-          FilledButton.icon(onPressed: null, icon: Icon(Icons.cloud_sync_outlined), label: Text('Synchronisation Cloud bientôt disponible')),
+          FilledButton.icon(
+            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Vos données locales sont actives. La synchronisation Cloud nécessite une configuration Supabase valide.',
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.cloud_sync_outlined),
+            label: const Text('Vérifier la synchronisation'),
+          ),
         ]),
       ),
     );

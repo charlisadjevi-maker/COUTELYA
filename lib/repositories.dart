@@ -209,6 +209,12 @@ class OrderRepository {
     DateTime? deliveryDate,
     String? notes,
   }) async {
+    if (totalAmount <= 0) {
+      throw ArgumentError('Le prix total doit être supérieur à zéro.');
+    }
+    if (advance < 0 || advance > totalAmount) {
+      throw ArgumentError("L'avance ne peut pas dépasser le prix total.");
+    }
     final db = await dbProvider.database;
     final now = DateTime.now();
     final id = _uuid.v4();
@@ -236,6 +242,43 @@ class OrderRepository {
     if (advance > 0) {
       await payments.add(orderId: id, amount: advance, method: 'cash', note: 'Avance à la commande');
     }
+    return (await getById(id))!;
+  }
+
+  Future<CoutureOrder> update({
+    required String id,
+    required String clientId,
+    required String garmentType,
+    String? description,
+    String? fabric,
+    String? color,
+    required double totalAmount,
+    DateTime? fittingDate,
+    DateTime? deliveryDate,
+    String? notes,
+  }) async {
+    if (totalAmount <= 0) {
+      throw ArgumentError('Le prix total doit être supérieur à zéro.');
+    }
+    final db = await dbProvider.database;
+    await db.update(
+      'orders',
+      {
+        'client_id': clientId,
+        'garment_type': garmentType.trim(),
+        'description': description?.trim(),
+        'fabric': fabric?.trim(),
+        'color': color?.trim(),
+        'total_amount': totalAmount,
+        'fitting_date': fittingDate?.toIso8601String(),
+        'delivery_date': deliveryDate?.toIso8601String(),
+        'notes': notes?.trim(),
+        'updated_at': DateTime.now().toIso8601String(),
+        'sync_status': 'pending',
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
     return (await getById(id))!;
   }
 

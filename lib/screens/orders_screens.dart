@@ -104,8 +104,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
 }
 
 class NewOrderScreen extends StatefulWidget {
-  const NewOrderScreen({super.key, this.preselectedClientId});
+  const NewOrderScreen({
+    super.key,
+    this.preselectedClientId,
+    this.existingOrder,
+  });
+
   final String? preselectedClientId;
+  final CoutureOrder? existingOrder;
 
   @override
   State<NewOrderScreen> createState() => _NewOrderScreenState();
@@ -114,6 +120,7 @@ class NewOrderScreen extends StatefulWidget {
 class _NewOrderScreenState extends State<NewOrderScreen> {
   final clientRepo = ClientRepository();
   final orderRepo = OrderRepository();
+  final paymentRepo = PaymentRepository();
   final formKey = GlobalKey<FormState>();
   final garment = TextEditingController();
   final description = TextEditingController();
@@ -131,10 +138,33 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
   DateTime? deliveryDate;
   bool saving = false;
 
+  bool get isEditing => widget.existingOrder != null;
+
   @override
   void initState() {
     super.initState();
-    clientId = widget.preselectedClientId;
+    final existing = widget.existingOrder;
+    clientId = existing?.clientId ?? widget.preselectedClientId;
+    if (existing != null) {
+      garment.text = existing.garmentType;
+      description.text = existing.description ?? '';
+      fabric.text = existing.fabric ?? '';
+      color.text = existing.color ?? '';
+      total.text = existing.totalAmount.toStringAsFixed(
+        existing.totalAmount % 1 == 0 ? 0 : 2,
+      );
+      notes.text = existing.notes ?? '';
+      fittingDate = existing.fittingDate;
+      deliveryDate = existing.deliveryDate;
+      garmentChoice = _choiceFor(existing.garmentType, garmentModels);
+      fabricChoice = _choiceFor(existing.fabric, fabricTypes);
+      colorChoice = _choiceFor(existing.color, fabricColors);
+    }
+  }
+
+  String? _choiceFor(String? value, List<String> options) {
+    if (value == null || value.trim().isEmpty) return null;
+    return options.contains(value) ? value : customCatalogOption;
   }
 
   @override
@@ -145,8 +175,13 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
     super.dispose();
   }
 
+  double _amount(String value) =>
+      double.tryParse(value.replaceAll(' ', '').replaceAll(',', '.')) ?? 0;
+
   Future<void> pickDate({required bool fitting}) async {
-    final initial = fitting ? (fittingDate ?? DateTime.now()) : (deliveryDate ?? DateTime.now().add(const Duration(days: 7)));
+    final initial = fitting
+        ? (fittingDate ?? DateTime.now())
+        : (deliveryDate ?? DateTime.now().add(const Duration(days: 7)));
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -163,7 +198,11 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
     });
   }
 
-  void _selectCatalogValue(String? value, TextEditingController controller, void Function(String?) setChoice) {
+  void _selectCatalogValue(
+    String? value,
+    TextEditingController controller,
+    void Function(String?) setChoice,
+  ) {
     setState(() {
       setChoice(value);
       if (value == null || value == customCatalogOption) {
@@ -182,52 +221,122 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
     required void Function(String?) setChoice,
     bool required = false,
   }) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      DropdownButtonFormField<String>(
-        initialValue: choice,
-        decoration: InputDecoration(labelText: label),
-        isExpanded: true,
-        items: options.map((e) => DropdownMenuItem(value: e, child: Text(e, overflow: TextOverflow.ellipsis))).toList(),
-        onChanged: (v) => _selectCatalogValue(v, controller, setChoice),
-        validator: required ? (v) => v == null ? 'Choisissez une option' : null : null,
-      ),
-      if (choice == customCatalogOption) ...[
-        const SizedBox(height: 9),
-        TextFormField(
-          controller: controller,
-          decoration: InputDecoration(labelText: '$label personnalisé'),
-          validator: required ? (v) => v == null || v.trim().isEmpty ? 'Précisez votre choix' : null : null,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          initialValue: choice,
+          decoration: InputDecoration(labelText: label),
+          isExpanded: true,
+          items: options
+              .map(
+                (e) => DropdownMenuItem(
+                  value: e,
+                  child: Text(e, overflow: TextOverflow.ellipsis),
+                ),
+              )
+              .toList(),
+          onChanged: (v) => _selectCatalogValue(v, controller, setChoice),
+          validator: required
+              ? (v) => v == null ? 'Choisissez une option' : null
+              : null,
         ),
+        if (choice == customCatalogOption) ...[
+          const SizedBox(height: 9),
+          TextFormField(
+            controller: controller,
+            decoration: InputDecoration(labelText: '$label personnalisé'),
+            validator: required
+                ? (v) => v == null || v.trim().isEmpty
+                    ? 'Précisez votre choix'
+                    : null
+                : null,
+          ),
+        ],
       ],
-    ]);
+    );
   }
 
   Future<void> save() async {
     if (!(formKey.currentState?.validate() ?? false) || clientId == null) {
-      if (clientId == null && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sélectionnez un client.')));
+      if (clientId == null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sélectionnez un client.')),
+        );
+      }
       return;
     }
+
+    final totalValue = _amount(total.text);
+    final advanceValue = _amount(advance.text);
+
+    if (!isEditing && advanceValue > totalValue) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("L'avance ne peut pas dépasser le prix total."),
+        ),
+      );
+      return;
+    }
+
+    if (isEditing) {
+      final alreadyPaid = await paymentRepo.totalForOrder(widget.existingOrder!.id);
+      if (totalValue < alreadyPaid) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Le prix total ne peut pas être inférieur au montant déjà payé (${formatMoney(alreadyPaid)}).',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+    }
+
     setState(() => saving = true);
-    await orderRepo.create(
-      clientId: clientId!,
-      garmentType: garment.text,
-      description: description.text,
-      fabric: fabric.text,
-      color: color.text,
-      totalAmount: double.tryParse(total.text.replaceAll(' ', '').replaceAll(',', '.')) ?? 0,
-      advance: double.tryParse(advance.text.replaceAll(' ', '').replaceAll(',', '.')) ?? 0,
-      fittingDate: fittingDate,
-      deliveryDate: deliveryDate,
-      notes: notes.text,
-    );
-    if (!mounted) return;
-    Navigator.of(context).pop(true);
+    try {
+      if (isEditing) {
+        await orderRepo.update(
+          id: widget.existingOrder!.id,
+          clientId: clientId!,
+          garmentType: garment.text,
+          description: description.text,
+          fabric: fabric.text,
+          color: color.text,
+          totalAmount: totalValue,
+          fittingDate: fittingDate,
+          deliveryDate: deliveryDate,
+          notes: notes.text,
+        );
+      } else {
+        await orderRepo.create(
+          clientId: clientId!,
+          garmentType: garment.text,
+          description: description.text,
+          fabric: fabric.text,
+          color: color.text,
+          totalAmount: totalValue,
+          advance: advanceValue,
+          fittingDate: fittingDate,
+          deliveryDate: deliveryDate,
+          notes: notes.text,
+        );
+      }
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Nouvelle commande')),
+      appBar: AppBar(
+        title: Text(isEditing ? 'Modifier la commande' : 'Nouvelle commande'),
+      ),
       body: Form(
         key: formKey,
         child: ListView(
@@ -241,7 +350,14 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
                   initialValue: rows.any((c) => c.id == clientId) ? clientId : null,
                   decoration: const InputDecoration(labelText: 'Client'),
                   isExpanded: true,
-                  items: rows.map((c) => DropdownMenuItem(value: c.id, child: Text(c.fullName, overflow: TextOverflow.ellipsis))).toList(),
+                  items: rows
+                      .map(
+                        (c) => DropdownMenuItem(
+                          value: c.id,
+                          child: Text(c.fullName, overflow: TextOverflow.ellipsis),
+                        ),
+                      )
+                      .toList(),
                   onChanged: (v) => setState(() => clientId = v),
                 );
               },
@@ -256,25 +372,115 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
               required: true,
             ),
             const SizedBox(height: 12),
-            TextField(controller: description, maxLines: 2, decoration: const InputDecoration(labelText: 'Description / manches / détails')),
+            TextField(
+              controller: description,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Description / manches / détails',
+              ),
+            ),
             const SizedBox(height: 12),
-            _catalogField(label: 'Tissu', options: fabricTypes, choice: fabricChoice, controller: fabric, setChoice: (v) => fabricChoice = v),
+            _catalogField(
+              label: 'Tissu',
+              options: fabricTypes,
+              choice: fabricChoice,
+              controller: fabric,
+              setChoice: (v) => fabricChoice = v,
+            ),
             const SizedBox(height: 12),
-            _catalogField(label: 'Couleur', options: fabricColors, choice: colorChoice, controller: color, setChoice: (v) => colorChoice = v),
+            _catalogField(
+              label: 'Couleur',
+              options: fabricColors,
+              choice: colorChoice,
+              controller: color,
+              setChoice: (v) => colorChoice = v,
+            ),
             const SizedBox(height: 12),
-            TextFormField(controller: total, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Prix total', suffixText: 'FCFA'), validator: (v) => (double.tryParse((v ?? '').replaceAll(' ', '').replaceAll(',', '.')) ?? 0) <= 0 ? 'Montant requis' : null),
+            TextFormField(
+              controller: total,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Prix total',
+                suffixText: 'FCFA',
+              ),
+              validator: (v) => _amount(v ?? '') <= 0 ? 'Montant requis' : null,
+            ),
+            if (!isEditing) ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: advance,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Avance reçue',
+                  suffixText: 'FCFA',
+                  helperText: 'L’avance doit être inférieure ou égale au prix total.',
+                ),
+                validator: (v) {
+                  final value = _amount(v ?? '');
+                  final price = _amount(total.text);
+                  if (value < 0) return 'Montant invalide';
+                  if (value > price) return "L'avance dépasse le prix total";
+                  return null;
+                },
+              ),
+            ] else ...[
+              const SizedBox(height: 12),
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline_rounded, color: CoutelyaColors.purple),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Les paiements déjà enregistrés se modifient depuis la rubrique Paiements.',
+                          style: TextStyle(color: CoutelyaColors.muted),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
-            TextField(controller: advance, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Avance reçue', suffixText: 'FCFA')),
+            Row(
+              children: [
+                Expanded(
+                  child: _dateTile(
+                    'Essayage prévu',
+                    fittingDate,
+                    () => pickDate(fitting: true),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _dateTile(
+                    'Livraison prévue',
+                    deliveryDate,
+                    () => pickDate(fitting: false),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
-            Row(children: [
-              Expanded(child: _dateTile('Essayage prévu', fittingDate, () => pickDate(fitting: true))),
-              const SizedBox(width: 10),
-              Expanded(child: _dateTile('Livraison prévue', deliveryDate, () => pickDate(fitting: false))),
-            ]),
-            const SizedBox(height: 12),
-            TextField(controller: notes, maxLines: 3, decoration: const InputDecoration(labelText: 'Notes')),
+            TextField(
+              controller: notes,
+              maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Notes'),
+            ),
             const SizedBox(height: 20),
-            FilledButton.icon(onPressed: saving ? null : save, icon: const Icon(Icons.arrow_forward_rounded), label: Text(saving ? 'Création...' : 'Créer la commande')),
+            FilledButton.icon(
+              onPressed: saving ? null : save,
+              icon: Icon(isEditing ? Icons.save_outlined : Icons.arrow_forward_rounded),
+              label: Text(
+                saving
+                    ? 'Enregistrement...'
+                    : isEditing
+                        ? 'Enregistrer les modifications'
+                        : 'Créer la commande',
+              ),
+            ),
           ],
         ),
       ),
@@ -286,12 +492,40 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
         borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.all(13),
-          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: CoutelyaColors.border), borderRadius: BorderRadius.circular(12)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: const TextStyle(fontSize: 12, color: CoutelyaColors.muted)),
-            const SizedBox(height: 7),
-            Row(children: [const Icon(Icons.event_outlined, size: 18, color: CoutelyaColors.purple), const SizedBox(width: 5), Expanded(child: Text(formatDate(value), style: const TextStyle(fontWeight: FontWeight.w800)))]),
-          ]),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: CoutelyaColors.border),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: CoutelyaColors.muted,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.event_outlined,
+                    size: 18,
+                    color: CoutelyaColors.purple,
+                  ),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      formatDate(value),
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       );
 }
@@ -326,7 +560,23 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         final o = snapshot.data;
         if (o == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
         return Scaffold(
-          appBar: AppBar(title: const Text('Détail de commande')),
+          appBar: AppBar(
+            title: const Text('Détail de commande'),
+            actions: [
+              IconButton(
+                tooltip: 'Modifier la commande',
+                onPressed: () async {
+                  final changed = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute(
+                      builder: (_) => NewOrderScreen(existingOrder: o),
+                    ),
+                  );
+                  if (changed == true && mounted) reload();
+                },
+                icon: const Icon(Icons.edit_outlined),
+              ),
+            ],
+          ),
           body: FutureBuilder<Client?>(
             future: clientRepo.getById(o.clientId),
             builder: (context, clientSnapshot) {
