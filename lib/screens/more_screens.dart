@@ -130,7 +130,7 @@ class MoreScreen extends StatelessWidget {
             style: OutlinedButton.styleFrom(foregroundColor: CoutelyaColors.red, minimumSize: const Size.fromHeight(48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
           ),
           const SizedBox(height: 12),
-          const Center(child: Text('COUTELYA V0.2.2', style: TextStyle(color: CoutelyaColors.muted, fontSize: 12))),
+          const Center(child: Text('COUTELYA V0.2.3', style: TextStyle(color: CoutelyaColors.muted, fontSize: 12))),
         ],
       ),
     );
@@ -159,60 +159,175 @@ class LyaScreen extends StatefulWidget {
 
 class _LyaScreenState extends State<LyaScreen> {
   final orderRepo = OrderRepository();
+  final clientRepo = ClientRepository();
   final input = TextEditingController();
+  final scrollController = ScrollController();
   final List<_ChatLine> lines = const [
-    _ChatLine(false, 'Bonjour 👋'),
-    _ChatLine(false, 'Je suis Lya. Je peux résumer les commandes, les retards et les montants à encaisser.'),
+    _ChatLine(false, 'Bonjour 👋 Je suis Lya, votre assistante COUTELYA.'),
+    _ChatLine(
+      false,
+      'Je peux vous donner un résumé de l’atelier, compter les clients, repérer les retards, les commandes prêtes ou livrées et suivre les montants à encaisser.',
+    ),
   ].toList();
+
+  static const quickQuestions = <String>[
+    'Résumé de l’atelier',
+    'Commandes en retard',
+    'Commandes prêtes',
+    'Commandes livrées',
+    'Reste à encaisser',
+    'Nombre de clients',
+  ];
 
   @override
   void dispose() {
     input.dispose();
+    scrollController.dispose();
     super.dispose();
   }
 
-  Future<void> send() async {
-    final text = input.text.trim();
-    if (text.isEmpty) return;
+  Future<void> _scrollToBottom() async {
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    if (!scrollController.hasClients) return;
+    await scrollController.animateTo(
+      scrollController.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+    );
+  }
+
+  Future<void> ask(String text) async {
+    final cleaned = text.trim();
+    if (cleaned.isEmpty) return;
     setState(() {
-      lines.add(_ChatLine(true, text));
+      lines.add(_ChatLine(true, cleaned));
       input.clear();
     });
+    await _scrollToBottom();
+
     final stats = await orderRepo.stats();
-    final lower = text.toLowerCase();
+    final clients = await clientRepo.search();
+    final orders = await orderRepo.listAll();
+    final lower = cleaned.toLowerCase();
+    final readyOrders = orders.where((o) => o.status == 'ready').toList();
+    final deliveredOrders = orders.where((o) => o.status == 'delivered').toList();
+
     String reply;
-    if (lower.contains('retard')) {
-      reply = '${stats.late} commande(s) sont actuellement en retard.';
-    } else if (lower.contains('encaisser') || lower.contains('reste') || lower.contains('argent')) {
-      reply = 'Il reste ${formatMoney(stats.receivable)} à encaisser sur les commandes enregistrées.';
-    } else if (lower.contains('prêt') || lower.contains('livr')) {
-      reply = '${stats.ready} commande(s) sont prêtes et ${stats.delivered} ont déjà été livrées.';
+    if (lower.contains('client')) {
+      reply = 'Vous avez ${clients.length} client(s) enregistré(s) dans COUTELYA.';
+    } else if (lower.contains('retard')) {
+      reply = stats.late == 0
+          ? 'Bonne nouvelle : aucune commande n’est actuellement en retard.'
+          : '${stats.late} commande(s) sont en retard. Ouvrez la carte « Commandes en retard » sur l’accueil pour voir uniquement ces dossiers.';
+    } else if (lower.contains('prêt') || lower.contains('prete') || lower.contains('prête')) {
+      reply = readyOrders.isEmpty
+          ? 'Aucune commande n’est actuellement prête à livrer.'
+          : '${readyOrders.length} commande(s) sont prêtes à livrer. Vous pouvez ouvrir la liste dédiée depuis l’accueil.';
+    } else if (lower.contains('livré') || lower.contains('livree') || lower.contains('livrée')) {
+      reply = '${deliveredOrders.length} commande(s) sont enregistrées comme livrées.';
+    } else if (lower.contains('encaisser') || lower.contains('reste') || lower.contains('argent') || lower.contains('paiement')) {
+      reply = 'Le total encaissé est de ${formatMoney(stats.received)} et il reste ${formatMoney(stats.receivable)} à encaisser.';
+    } else if (lower.contains('cours')) {
+      reply = '${stats.inProgress} commande(s) sont actuellement en cours de confection.';
+    } else if (lower.contains('résum') || lower.contains('resume') || lower.contains('atelier')) {
+      reply = 'Résumé de l’atelier : ${clients.length} client(s), ${stats.inProgress} commande(s) en cours, ${stats.ready} prête(s) à livrer, ${stats.delivered} livrée(s), ${stats.late} en retard, ${formatMoney(stats.receivable)} restant à encaisser.';
     } else {
-      reply = 'Résumé : ${stats.inProgress} commande(s) en cours, ${stats.ready} prête(s), ${stats.late} en retard et ${formatMoney(stats.receivable)} à encaisser.';
+      reply = 'Je peux répondre sur les clients, les commandes en cours, les commandes prêtes, les livraisons, les retards et les paiements. Essayez l’un des raccourcis proposés ci-dessus.';
     }
-    if (mounted) setState(() => lines.add(_ChatLine(false, reply)));
+
+    if (mounted) {
+      setState(() => lines.add(_ChatLine(false, reply)));
+      await _scrollToBottom();
+    }
   }
+
+  Future<void> send() => ask(input.text);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Row(children: [CircleAvatar(radius: 16, backgroundColor: CoutelyaColors.purple, child: Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 17)), SizedBox(width: 9), Text('Lya')])),
+      appBar: AppBar(
+        title: const Row(
+          children: [
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: CoutelyaColors.purple,
+              child: Icon(
+                Icons.auto_awesome_rounded,
+                color: Colors.white,
+                size: 17,
+              ),
+            ),
+            SizedBox(width: 9),
+            Text('Lya'),
+          ],
+        ),
+      ),
       body: Column(
         children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(
+                bottom: BorderSide(color: CoutelyaColors.border),
+              ),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: quickQuestions
+                    .map(
+                      (question) => Padding(
+                        padding: const EdgeInsets.only(right: 7),
+                        child: ActionChip(
+                          avatar: const Icon(
+                            Icons.auto_awesome_rounded,
+                            size: 16,
+                            color: CoutelyaColors.purple,
+                          ),
+                          label: Text(question),
+                          onPressed: () => ask(question),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ),
           Expanded(
             child: ListView.builder(
+              controller: scrollController,
               padding: const EdgeInsets.all(16),
               itemCount: lines.length,
               itemBuilder: (context, i) {
                 final line = lines[i];
                 return Align(
-                  alignment: line.user ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment:
+                      line.user ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * .78),
-                    decoration: BoxDecoration(color: line.user ? CoutelyaColors.purple : CoutelyaColors.purpleSoft, borderRadius: BorderRadius.circular(16)),
-                    child: Text(line.text, style: TextStyle(color: line.user ? Colors.white : CoutelyaColors.ink, height: 1.35)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 11,
+                    ),
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * .82,
+                    ),
+                    decoration: BoxDecoration(
+                      color: line.user
+                          ? CoutelyaColors.purple
+                          : CoutelyaColors.purpleSoft,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      line.text,
+                      style: TextStyle(
+                        color: line.user ? Colors.white : CoutelyaColors.ink,
+                        height: 1.35,
+                      ),
+                    ),
                   ),
                 );
               },
@@ -222,11 +337,24 @@ class _LyaScreenState extends State<LyaScreen> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              child: Row(children: [
-                Expanded(child: TextField(controller: input, onSubmitted: (_) => send(), decoration: const InputDecoration(hintText: 'Comment puis-je vous aider ?'))),
-                const SizedBox(width: 8),
-                IconButton.filled(onPressed: send, icon: const Icon(Icons.arrow_upward_rounded)),
-              ]),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: input,
+                      onSubmitted: (_) => send(),
+                      decoration: const InputDecoration(
+                        hintText: 'Posez une question sur votre atelier',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filled(
+                    onPressed: send,
+                    icon: const Icon(Icons.arrow_upward_rounded),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -671,7 +799,7 @@ class AboutCoutelyaScreen extends StatelessWidget {
           Card(
             child: Column(
               children: [
-                ListTile(title: Text('Version'), trailing: Text('0.2.2')),
+                ListTile(title: Text('Version'), trailing: Text('0.2.3')),
                 Divider(height: 1),
                 ListTile(
                   title: Text('Mode de fonctionnement'),

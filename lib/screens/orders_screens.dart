@@ -103,6 +103,242 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 }
 
+
+enum OrderCategory { ready, delivered, late }
+
+class OrderCategoryScreen extends StatefulWidget {
+  const OrderCategoryScreen({super.key, required this.category});
+
+  final OrderCategory category;
+
+  @override
+  State<OrderCategoryScreen> createState() => _OrderCategoryScreenState();
+}
+
+class _OrderCategoryScreenState extends State<OrderCategoryScreen> {
+  final orderRepo = OrderRepository();
+  final clientRepo = ClientRepository();
+  late Future<List<CoutureOrder>> orders;
+
+  @override
+  void initState() {
+    super.initState();
+    orders = _load();
+  }
+
+  Future<List<CoutureOrder>> _load() async {
+    final all = await orderRepo.listAll();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final filtered = all.where((order) {
+      switch (widget.category) {
+        case OrderCategory.ready:
+          return order.status == 'ready';
+        case OrderCategory.delivered:
+          return order.status == 'delivered';
+        case OrderCategory.late:
+          final date = order.deliveryDate;
+          if (date == null || ['delivered', 'cancelled'].contains(order.status)) {
+            return false;
+          }
+          final deliveryDay = DateTime(date.year, date.month, date.day);
+          return deliveryDay.isBefore(today);
+      }
+    }).toList();
+
+    filtered.sort((a, b) {
+      final ad = a.deliveryDate ?? a.orderDate;
+      final bd = b.deliveryDate ?? b.orderDate;
+      return widget.category == OrderCategory.delivered
+          ? bd.compareTo(ad)
+          : ad.compareTo(bd);
+    });
+    return filtered;
+  }
+
+  void reload() => setState(() => orders = _load());
+
+  String get title {
+    switch (widget.category) {
+      case OrderCategory.ready:
+        return 'Commandes prêtes à livrer';
+      case OrderCategory.delivered:
+        return 'Commandes livrées';
+      case OrderCategory.late:
+        return 'Commandes en retard';
+    }
+  }
+
+  String get description {
+    switch (widget.category) {
+      case OrderCategory.ready:
+        return 'Uniquement les commandes dont la confection est terminée et qui attendent leur livraison.';
+      case OrderCategory.delivered:
+        return 'Historique des commandes déjà remises aux clients.';
+      case OrderCategory.late:
+        return 'Commandes non livrées dont la date prévue de livraison est dépassée.';
+    }
+  }
+
+  String get emptyText {
+    switch (widget.category) {
+      case OrderCategory.ready:
+        return 'Aucune commande n’est actuellement prête à livrer.';
+      case OrderCategory.delivered:
+        return 'Aucune commande livrée pour le moment.';
+      case OrderCategory.late:
+        return 'Aucune commande en retard.';
+    }
+  }
+
+  IconData get icon {
+    switch (widget.category) {
+      case OrderCategory.ready:
+        return Icons.inventory_2_outlined;
+      case OrderCategory.delivered:
+        return Icons.local_shipping_outlined;
+      case OrderCategory.late:
+        return Icons.warning_amber_rounded;
+    }
+  }
+
+  Color get accent {
+    switch (widget.category) {
+      case OrderCategory.ready:
+        return CoutelyaColors.gold;
+      case OrderCategory.delivered:
+        return CoutelyaColors.green;
+      case OrderCategory.late:
+        return CoutelyaColors.red;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: FutureBuilder<List<CoutureOrder>>(
+        future: orders,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final rows = snapshot.data ?? const <CoutureOrder>[];
+          return RefreshIndicator(
+            onRefresh: () async => reload(),
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: accent.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.16),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(icon, color: accent),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${rows.length} commande(s)',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              description,
+                              style: const TextStyle(
+                                color: CoutelyaColors.muted,
+                                height: 1.35,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                if (rows.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 40),
+                    child: EmptyState(
+                      icon: icon,
+                      title: title,
+                      subtitle: emptyText,
+                    ),
+                  )
+                else
+                  ...rows.map(
+                    (order) => Padding(
+                      padding: const EdgeInsets.only(bottom: 9),
+                      child: FutureBuilder<Client?>(
+                        future: clientRepo.getById(order.clientId),
+                        builder: (context, clientSnapshot) {
+                          final client = clientSnapshot.data;
+                          return Card(
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 7,
+                              ),
+                              leading: CircleAvatar(
+                                backgroundColor: accent.withValues(alpha: 0.12),
+                                foregroundColor: accent,
+                                child: Icon(icon, size: 20),
+                              ),
+                              title: Text(
+                                order.reference,
+                                style: const TextStyle(fontWeight: FontWeight.w900),
+                              ),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  '${client?.fullName ?? 'Client'} • ${order.garmentType}\nLivraison : ${formatDate(order.deliveryDate)}',
+                                ),
+                              ),
+                              isThreeLine: true,
+                              trailing: const Icon(Icons.chevron_right_rounded),
+                              onTap: () async {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => OrderDetailScreen(orderId: order.id),
+                                  ),
+                                );
+                                if (mounted) reload();
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class NewOrderScreen extends StatefulWidget {
   const NewOrderScreen({
     super.key,
@@ -542,6 +778,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   final orderRepo = OrderRepository();
   final clientRepo = ClientRepository();
   final paymentRepo = PaymentRepository();
+  final measurementRepo = MeasurementRepository();
   late Future<CoutureOrder?> order;
 
   @override
@@ -602,6 +839,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         const Divider(height: 1),
                         _detail('Couleur', o.color ?? '—'),
                       ])),
+                      if (c != null) ...[
+                        const SizedBox(height: 14),
+                        _measurementsCard(c),
+                      ],
                       const SizedBox(height: 14),
                       Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
                         _money('Prix total', o.totalAmount, CoutelyaColors.ink),
@@ -646,6 +887,144 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         );
       },
     );
+  }
+
+
+  Widget _measurementsCard(Client client) => FutureBuilder<Measurement?>(
+        future: measurementRepo.latestForClient(client.id),
+        builder: (context, snapshot) {
+          final measurement = snapshot.data;
+          final values = measurement?.values.entries
+                  .where((entry) => entry.value != null)
+                  .toList() ??
+              const <MapEntry<String, double?>>[];
+          return Card(
+            clipBehavior: Clip.antiAlias,
+            child: ExpansionTile(
+              leading: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: CoutelyaColors.purpleSoft,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.straighten_rounded,
+                  color: CoutelyaColors.purple,
+                ),
+              ),
+              title: const Text(
+                'Mesures du client',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              subtitle: Text(
+                measurement == null
+                    ? 'Aucune mesure enregistrée'
+                    : '${measurement.category} • ${formatDate(measurement.takenAt)}',
+              ),
+              childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
+              children: [
+                if (snapshot.connectionState == ConnectionState.waiting)
+                  const Padding(
+                    padding: EdgeInsets.all(18),
+                    child: CircularProgressIndicator(),
+                  )
+                else if (measurement == null || values.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 14),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline_rounded,
+                          color: CoutelyaColors.muted,
+                        ),
+                        SizedBox(width: 9),
+                        Expanded(
+                          child: Text(
+                            'Les mesures de ce client n’ont pas encore été renseignées.',
+                            style: TextStyle(color: CoutelyaColors.muted),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: values
+                        .map(
+                          (entry) => Container(
+                            constraints: const BoxConstraints(minWidth: 135),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: CoutelyaColors.purpleSoft,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: CoutelyaColors.border),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _measurementLabel(entry.key),
+                                  style: const TextStyle(
+                                    color: CoutelyaColors.muted,
+                                    fontSize: 11.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${entry.value!.toStringAsFixed(entry.value! % 1 == 0 ? 0 : 1)} cm',
+                                  style: const TextStyle(
+                                    color: CoutelyaColors.purple,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                if (measurement?.notes?.trim().isNotEmpty == true) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(11),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF9EA),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      'Notes : ${measurement!.notes}',
+                      style: const TextStyle(fontSize: 12.5),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+      );
+
+  String _measurementLabel(String key) {
+    const labels = <String, String>{
+      'bust': 'Tour de poitrine',
+      'waist': 'Tour de taille',
+      'hips': 'Tour de hanches',
+      'back': 'Longueur dos',
+      'shoulder': 'Longueur épaule',
+      'sleeve': 'Longueur manche',
+      'neck': 'Tour de cou',
+      'inseam': 'Entrejambe',
+      'thigh': 'Tour de cuisse',
+    };
+    if (key.startsWith('custom:')) return key.substring(7);
+    return labels[key] ?? key;
   }
 
   Widget _detail(String label, String value) => Padding(
