@@ -1,5 +1,5 @@
--- COUTELYA V0.2 — schéma Supabase/PostgreSQL
--- Utilisation Cloud optionnelle. L'application fonctionne d'abord hors connexion via SQLite.
+-- COUTELYA V1.0 — schéma Supabase/PostgreSQL
+-- L'application reste offline-first via SQLite.
 
 create extension if not exists pgcrypto;
 
@@ -56,7 +56,7 @@ create table if not exists public.orders (
   order_date timestamptz,
   fitting_date timestamptz,
   delivery_date timestamptz,
-  status text not null default 'registered' check (status in ('registered','cutting','sewing','fitting','finishing','ready','delivered','cancelled')),
+  status text not null default 'registered' check (status in ('registered','measured','cutting','sewing','fitting','alteration','finishing','ready','delivered','cancelled')),
   notes text,
   created_at timestamptz not null,
   updated_at timestamptz not null,
@@ -77,40 +77,42 @@ create table if not exists public.payments (
   deleted_at timestamptz
 );
 
+create table if not exists public.expenses (
+  id uuid primary key,
+  workshop_id uuid not null references public.workshops(id) on delete cascade,
+  category text not null,
+  amount numeric(12,2) not null check (amount > 0),
+  expense_date timestamptz not null,
+  note text,
+  created_at timestamptz not null,
+  updated_at timestamptz not null,
+  deleted_at timestamptz
+);
+
 create index if not exists idx_clients_workshop on public.clients(workshop_id);
 create index if not exists idx_clients_name on public.clients(workshop_id, last_name, first_name);
 create index if not exists idx_orders_workshop_status on public.orders(workshop_id, status);
 create index if not exists idx_orders_delivery on public.orders(workshop_id, delivery_date);
 create index if not exists idx_payments_order on public.payments(order_id);
+create index if not exists idx_expenses_workshop_date on public.expenses(workshop_id, expense_date);
 
 alter table public.workshops enable row level security;
 alter table public.clients enable row level security;
 alter table public.measurements enable row level security;
 alter table public.orders enable row level security;
 alter table public.payments enable row level security;
+alter table public.expenses enable row level security;
 
-create policy "workshops_owner_all" on public.workshops for all to authenticated
-using ((select auth.uid()) = owner_id)
-with check ((select auth.uid()) = owner_id);
-
-create policy "clients_owner_all" on public.clients for all to authenticated
-using (exists (select 1 from public.workshops w where w.id = clients.workshop_id and w.owner_id = (select auth.uid())))
-with check (exists (select 1 from public.workshops w where w.id = clients.workshop_id and w.owner_id = (select auth.uid())));
-
-create policy "measurements_owner_all" on public.measurements for all to authenticated
-using (exists (select 1 from public.workshops w where w.id = measurements.workshop_id and w.owner_id = (select auth.uid())))
-with check (exists (select 1 from public.workshops w where w.id = measurements.workshop_id and w.owner_id = (select auth.uid())));
-
-create policy "orders_owner_all" on public.orders for all to authenticated
-using (exists (select 1 from public.workshops w where w.id = orders.workshop_id and w.owner_id = (select auth.uid())))
-with check (exists (select 1 from public.workshops w where w.id = orders.workshop_id and w.owner_id = (select auth.uid())));
-
-create policy "payments_owner_all" on public.payments for all to authenticated
-using (exists (select 1 from public.workshops w where w.id = payments.workshop_id and w.owner_id = (select auth.uid())))
-with check (exists (select 1 from public.workshops w where w.id = payments.workshop_id and w.owner_id = (select auth.uid())));
+create policy "workshops_owner_all" on public.workshops for all to authenticated using ((select auth.uid()) = owner_id) with check ((select auth.uid()) = owner_id);
+create policy "clients_owner_all" on public.clients for all to authenticated using (exists (select 1 from public.workshops w where w.id = clients.workshop_id and w.owner_id = (select auth.uid()))) with check (exists (select 1 from public.workshops w where w.id = clients.workshop_id and w.owner_id = (select auth.uid())));
+create policy "measurements_owner_all" on public.measurements for all to authenticated using (exists (select 1 from public.workshops w where w.id = measurements.workshop_id and w.owner_id = (select auth.uid()))) with check (exists (select 1 from public.workshops w where w.id = measurements.workshop_id and w.owner_id = (select auth.uid())));
+create policy "orders_owner_all" on public.orders for all to authenticated using (exists (select 1 from public.workshops w where w.id = orders.workshop_id and w.owner_id = (select auth.uid()))) with check (exists (select 1 from public.workshops w where w.id = orders.workshop_id and w.owner_id = (select auth.uid())));
+create policy "payments_owner_all" on public.payments for all to authenticated using (exists (select 1 from public.workshops w where w.id = payments.workshop_id and w.owner_id = (select auth.uid()))) with check (exists (select 1 from public.workshops w where w.id = payments.workshop_id and w.owner_id = (select auth.uid())));
+create policy "expenses_owner_all" on public.expenses for all to authenticated using (exists (select 1 from public.workshops w where w.id = expenses.workshop_id and w.owner_id = (select auth.uid()))) with check (exists (select 1 from public.workshops w where w.id = expenses.workshop_id and w.owner_id = (select auth.uid())));
 
 grant select, insert, update, delete on public.workshops to authenticated;
 grant select, insert, update, delete on public.clients to authenticated;
 grant select, insert, update, delete on public.measurements to authenticated;
 grant select, insert, update, delete on public.orders to authenticated;
 grant select, insert, update, delete on public.payments to authenticated;
+grant select, insert, update, delete on public.expenses to authenticated;

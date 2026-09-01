@@ -131,6 +131,30 @@ class Payment {
       );
 }
 
+class Expense {
+  const Expense({
+    required this.id,
+    required this.category,
+    required this.amount,
+    required this.expenseDate,
+    this.note,
+  });
+
+  final String id;
+  final String category;
+  final double amount;
+  final DateTime expenseDate;
+  final String? note;
+
+  factory Expense.fromMap(Map<String, Object?> map) => Expense(
+        id: map['id'] as String,
+        category: (map['category'] as String?) ?? 'Autre',
+        amount: (map['amount'] as num?)?.toDouble() ?? 0,
+        expenseDate: DateTime.tryParse((map['expense_date'] as String?) ?? '') ?? DateTime.now(),
+        note: map['note'] as String?,
+      );
+}
+
 class DashboardStats {
   const DashboardStats({
     required this.inProgress,
