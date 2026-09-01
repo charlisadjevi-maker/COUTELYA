@@ -15,11 +15,10 @@ class LocalDatabase {
 
     _database = await openDatabase(
       path,
-      version: 1,
-      onConfigure: (db) async {
-        await db.execute('PRAGMA foreign_keys = ON');
-      },
+      version: 2,
+      onConfigure: (db) async => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
     return _database!;
   }
@@ -33,6 +32,7 @@ class LocalDatabase {
         last_name TEXT NOT NULL,
         phone TEXT,
         whatsapp TEXT,
+        email TEXT,
         gender TEXT,
         address TEXT,
         notes TEXT,
@@ -64,13 +64,17 @@ class LocalDatabase {
         id TEXT PRIMARY KEY,
         client_id TEXT NOT NULL,
         workshop_id TEXT,
-        reference TEXT NOT NULL,
+        reference TEXT NOT NULL UNIQUE,
         garment_type TEXT NOT NULL,
         description TEXT,
+        fabric TEXT,
+        color TEXT,
         total_amount REAL NOT NULL DEFAULT 0,
+        order_date TEXT,
         delivery_date TEXT,
         fitting_date TEXT,
         status TEXT NOT NULL DEFAULT 'registered',
+        notes TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         deleted_at TEXT,
@@ -96,14 +100,53 @@ class LocalDatabase {
       )
     ''');
 
-    await db.execute(
-      'CREATE INDEX idx_clients_name ON clients(last_name, first_name)',
-    );
-    await db.execute(
-      'CREATE INDEX idx_orders_delivery ON orders(delivery_date)',
-    );
-    await db.execute(
-      'CREATE INDEX idx_orders_status ON orders(status)',
-    );
+    await db.execute('''
+      CREATE TABLE expenses (
+        id TEXT PRIMARY KEY,
+        workshop_id TEXT,
+        category TEXT NOT NULL,
+        amount REAL NOT NULL CHECK(amount > 0),
+        expense_date TEXT NOT NULL,
+        note TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT,
+        sync_status TEXT NOT NULL DEFAULT 'pending'
+      )
+    ''');
+
+    await _createIndexes(db);
+  }
+
+  Future<void> _createIndexes(Database db) async {
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_clients_name ON clients(last_name, first_name)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_orders_delivery ON orders(delivery_date)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category)');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE orders ADD COLUMN fabric TEXT');
+      await db.execute('ALTER TABLE orders ADD COLUMN color TEXT');
+      await db.execute('''
+        CREATE TABLE expenses (
+          id TEXT PRIMARY KEY,
+          workshop_id TEXT,
+          category TEXT NOT NULL,
+          amount REAL NOT NULL CHECK(amount > 0),
+          expense_date TEXT NOT NULL,
+          note TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          deleted_at TEXT,
+          sync_status TEXT NOT NULL DEFAULT 'pending'
+        )
+      ''');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category)');
+    }
   }
 }
