@@ -170,6 +170,61 @@ class PaymentRepository {
   }
 }
 
+class ExpenseRepository {
+  final dbProvider = LocalDatabase.instance;
+
+  Future<List<Expense>> listAll() async {
+    final db = await dbProvider.database;
+    final rows = await db.query('expenses', where: 'deleted_at IS NULL', orderBy: 'expense_date DESC');
+    return rows.map(Expense.fromMap).toList();
+  }
+
+  Future<double> total({DateTime? from, DateTime? to}) async {
+    final db = await dbProvider.database;
+    final conditions = <String>['deleted_at IS NULL'];
+    final args = <Object?>[];
+    if (from != null) {
+      conditions.add('expense_date >= ?');
+      args.add(from.toIso8601String());
+    }
+    if (to != null) {
+      conditions.add('expense_date < ?');
+      args.add(to.toIso8601String());
+    }
+    final rows = await db.rawQuery(
+      'SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE ${conditions.join(' AND ')}',
+      args,
+    );
+    return (rows.first['total'] as num?)?.toDouble() ?? 0;
+  }
+
+  Future<void> add({required String category, required double amount, String? note, DateTime? date}) async {
+    if (amount <= 0) throw ArgumentError('Le montant de la dépense doit être supérieur à zéro.');
+    final db = await dbProvider.database;
+    final now = DateTime.now();
+    await db.insert('expenses', {
+      'id': _uuid.v4(),
+      'category': category.trim().isEmpty ? 'Autre' : category.trim(),
+      'amount': amount,
+      'expense_date': (date ?? now).toIso8601String(),
+      'note': note?.trim(),
+      'created_at': now.toIso8601String(),
+      'updated_at': now.toIso8601String(),
+      'sync_status': 'pending',
+    });
+  }
+
+  Future<void> delete(String id) async {
+    final db = await dbProvider.database;
+    await db.update(
+      'expenses',
+      {'deleted_at': DateTime.now().toIso8601String(), 'updated_at': DateTime.now().toIso8601String(), 'sync_status': 'pending'},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+}
+
 class OrderRepository {
   final dbProvider = LocalDatabase.instance;
   final payments = PaymentRepository();
@@ -197,6 +252,15 @@ class OrderRepository {
     return rows.isEmpty ? null : CoutureOrder.fromMap(rows.first);
   }
 
+  Future<String> _nextReference(Database db, int year) async {
+    final rows = await db.rawQuery(
+      "SELECT MAX(CAST(SUBSTR(reference, 10) AS INTEGER)) AS max_number FROM orders WHERE reference LIKE ?",
+      ['CMD-$year-%'],
+    );
+    final maxNumber = (rows.first['max_number'] as num?)?.toInt() ?? 0;
+    return 'CMD-$year-${(maxNumber + 1).toString().padLeft(4, '0')}';
+  }
+
   Future<CoutureOrder> create({
     required String clientId,
     required String garmentType,
@@ -209,18 +273,12 @@ class OrderRepository {
     DateTime? deliveryDate,
     String? notes,
   }) async {
-    if (totalAmount <= 0) {
-      throw ArgumentError('Le prix total doit être supérieur à zéro.');
-    }
-    if (advance < 0 || advance > totalAmount) {
-      throw ArgumentError("L'avance ne peut pas dépasser le prix total.");
-    }
+    if (totalAmount <= 0) throw ArgumentError('Le prix total doit être supérieur à zéro.');
+    if (advance < 0 || advance > totalAmount) throw ArgumentError("L'avance ne peut pas dépasser le prix total.");
     final db = await dbProvider.database;
     final now = DateTime.now();
     final id = _uuid.v4();
-    final countRows = await db.rawQuery('SELECT COUNT(*) AS c FROM orders');
-    final count = ((countRows.first['c'] as num?)?.toInt() ?? 0) + 1;
-    final reference = 'CMD-${now.year}-${count.toString().padLeft(4, '0')}';
+    final reference = await _nextReference(db, now.year);
     await db.insert('orders', {
       'id': id,
       'client_id': clientId,
@@ -239,9 +297,7 @@ class OrderRepository {
       'updated_at': now.toIso8601String(),
       'sync_status': 'pending',
     });
-    if (advance > 0) {
-      await payments.add(orderId: id, amount: advance, method: 'cash', note: 'Avance à la commande');
-    }
+    if (advance > 0) await payments.add(orderId: id, amount: advance, method: 'cash', note: 'Avance à la commande');
     return (await getById(id))!;
   }
 
@@ -257,9 +313,7 @@ class OrderRepository {
     DateTime? deliveryDate,
     String? notes,
   }) async {
-    if (totalAmount <= 0) {
-      throw ArgumentError('Le prix total doit être supérieur à zéro.');
-    }
+    if (totalAmount <= 0) throw ArgumentError('Le prix total doit être supérieur à zéro.');
     final db = await dbProvider.database;
     await db.update(
       'orders',
@@ -283,6 +337,8 @@ class OrderRepository {
   }
 
   Future<void> updateStatus(String id, String status) async {
+    const allowed = {'registered', 'measured', 'cutting', 'sewing', 'fitting', 'alteration', 'finishing', 'ready', 'delivered', 'cancelled'};
+    if (!allowed.contains(status)) throw ArgumentError('Statut de commande invalide.');
     final db = await dbProvider.database;
     await db.update(
       'orders',
