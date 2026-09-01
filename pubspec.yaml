@@ -1,7 +1,7 @@
 name: coutelya
 description: COUTELYA - application mobile de gestion d'atelier de couture
 publish_to: 'none'
-version: 0.2.0+2
+version: 1.0.0+1
 
 environment:
   sdk: '>=3.10.0 <4.0.0'
