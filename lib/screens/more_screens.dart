@@ -407,25 +407,64 @@ class SubscriptionsScreen extends StatelessWidget {
       );
 }
 
-class WorkshopProfileScreen extends StatelessWidget {
+class WorkshopProfileScreen extends StatefulWidget {
   const WorkshopProfileScreen({super.key});
+
+  @override
+  State<WorkshopProfileScreen> createState() => _WorkshopProfileScreenState();
+}
+
+class _WorkshopProfileScreenState extends State<WorkshopProfileScreen> {
+  final repo = WorkshopRepository();
+  final nameController = TextEditingController();
+  bool loading = true;
+  bool saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    nameController.text = await repo.getName();
+    if (mounted) setState(() => loading = false);
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => saving = true);
+    await repo.saveName(nameController.text);
+    if (!mounted) return;
+    setState(() => saving = false);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nom de l’atelier enregistré.')));
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Profil de l’atelier')),
-      body: ListView(
-        padding: const EdgeInsets.all(18),
-        children: [
-          const Center(child: CircleAvatar(radius: 45, backgroundColor: CoutelyaColors.purpleSoft, child: Icon(Icons.storefront_rounded, color: CoutelyaColors.purple, size: 38))),
-          const SizedBox(height: 18),
-          const Center(child: Text('Atelier Élégance', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900))),
-          const SizedBox(height: 22),
-          const Card(child: Column(children: [ListTile(title: Text('Propriétaire'), subtitle: Text('Marie K.')), Divider(height: 1), ListTile(title: Text('Téléphone'), subtitle: Text('+229 97 12 34 56')), Divider(height: 1), ListTile(title: Text('Adresse'), subtitle: Text('Lokossa, Bénin')), Divider(height: 1), ListTile(title: Text('Offre actuelle'), subtitle: Text('COUTELYA Pro'))])),
-          const SizedBox(height: 16),
-          FilledButton.icon(onPressed: () {}, icon: const Icon(Icons.edit_outlined), label: const Text('Modifier le profil')),
-        ],
-      ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(18),
+              children: [
+                const Center(child: CircleAvatar(radius: 45, backgroundColor: CoutelyaColors.purpleSoft, child: Icon(Icons.storefront_rounded, color: CoutelyaColors.purple, size: 38))),
+                const SizedBox(height: 18),
+                const Center(child: Text('Identité de l’atelier', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900))),
+                const SizedBox(height: 22),
+                TextField(controller: nameController, textInputAction: TextInputAction.done, decoration: const InputDecoration(labelText: 'Nom de l’atelier', prefixIcon: Icon(Icons.storefront_outlined), helperText: 'Ce nom sera affiché sur le tableau de bord.')),
+                const SizedBox(height: 16),
+                const Card(child: Column(children: [ListTile(title: Text('Propriétaire'), subtitle: Text('Marie K.')), Divider(height: 1), ListTile(title: Text('Téléphone'), subtitle: Text('+229 97 12 34 56')), Divider(height: 1), ListTile(title: Text('Adresse'), subtitle: Text('Lokossa, Bénin')), Divider(height: 1), ListTile(title: Text('Offre actuelle'), subtitle: Text('COUTELYA Pro'))])),
+                const SizedBox(height: 16),
+                FilledButton.icon(onPressed: saving ? null : _save, icon: const Icon(Icons.save_outlined), label: Text(saving ? 'Enregistrement...' : 'Enregistrer le nom')),
+              ],
+            ),
     );
   }
 }

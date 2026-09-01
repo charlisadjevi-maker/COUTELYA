@@ -20,10 +20,12 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final repo = OrderRepository();
   final expenseRepo = ExpenseRepository();
+  final workshopRepo = WorkshopRepository();
   late Future<DashboardStats> stats = repo.stats();
+  late Future<String> workshopName = workshopRepo.getName();
   late Future<double> expenses = expenseRepo.total();
 
-  void reload() => setState(() { stats = repo.stats(); expenses = expenseRepo.total(); });
+  void reload() => setState(() { stats = repo.stats(); expenses = expenseRepo.total(); workshopName = workshopRepo.getName(); });
 
   Future<void> newOrder() async {
     final created = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => const NewOrderScreen()));
@@ -56,10 +58,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(18, 18, 18, 28),
             children: [
-              Row(children: [
-                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Bonjour 👋', style: TextStyle(color: CoutelyaColors.muted, fontWeight: FontWeight.w700)), SizedBox(height: 4), Text('Atelier Élégance', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900))])),
-                Container(width: 42, height: 42, decoration: const BoxDecoration(color: CoutelyaColors.purpleSoft, shape: BoxShape.circle), child: const Icon(Icons.notifications_none_rounded, color: CoutelyaColors.purple)),
-              ]),
+              FutureBuilder<String>(
+                future: workshopName,
+                builder: (context, snapshot) => Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Bonjour 👋', style: TextStyle(color: CoutelyaColors.muted, fontWeight: FontWeight.w700)), const SizedBox(height: 4), Text(snapshot.data ?? 'Atelier Élégance', style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900))])),
+                  Container(width: 42, height: 42, decoration: const BoxDecoration(color: CoutelyaColors.purpleSoft, shape: BoxShape.circle), child: const Icon(Icons.notifications_none_rounded, color: CoutelyaColors.purple)),
+                ]),
+              ),
               const SizedBox(height: 24),
               const Text('Aperçu de votre activité', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
               const SizedBox(height: 5),

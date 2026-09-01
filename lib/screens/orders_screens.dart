@@ -789,6 +789,27 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   void reload() => setState(() => order = orderRepo.getById(widget.orderId));
 
+  Future<void> _markAsPaid(CoutureOrder o, double balance) async {
+    if (balance <= 0) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Marquer la commande comme soldée ?'),
+        content: Text('Le solde de ${formatMoney(balance)} sera enregistré comme paiement en espèces.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirmer')),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    await paymentRepo.add(orderId: o.id, amount: balance, method: 'cash', note: 'Solde enregistré via le bouton Soldé');
+    if (mounted) {
+      reload();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Commande soldée.')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<CoutureOrder?>(
@@ -860,6 +881,22 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         _detail('Livraison prévue', formatDate(o.deliveryDate)),
                       ])),
                       const SizedBox(height: 18),
+                      if (balance > 0) ...[
+                        FilledButton.icon(
+                          onPressed: () => _markAsPaid(o, balance),
+                          icon: const Icon(Icons.check_circle_outline_rounded),
+                          label: const Text('Soldé'),
+                          style: FilledButton.styleFrom(backgroundColor: CoutelyaColors.green, minimumSize: const Size.fromHeight(48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                        ),
+                        const SizedBox(height: 10),
+                      ] else
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(color: CoutelyaColors.green.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(12), border: Border.all(color: CoutelyaColors.green.withValues(alpha: 0.25))),
+                          child: const Row(children: [Icon(Icons.check_circle_rounded, color: CoutelyaColors.green), SizedBox(width: 9), Text('Commande soldée', style: TextStyle(fontWeight: FontWeight.w900, color: CoutelyaColors.green))]),
+                        ),
+                      const SizedBox(height: 10),
                       FilledButton.icon(
                         onPressed: () async {
                           await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ProductionTrackingScreen(order: o)));

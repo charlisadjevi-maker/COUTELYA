@@ -341,7 +341,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
         builder: (context, snapshot) {
           final rows = snapshot.data ?? const <CoutureOrder>[];
           if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-          if (rows.isEmpty) return const EmptyState(icon: Icons.receipt_long_outlined, title: 'Aucune commande', subtitle: 'Les commandes de ce client apparaîtront ici.');
+          if (rows.isEmpty) return ListView(padding: const EdgeInsets.all(18), children: [const EmptyState(icon: Icons.receipt_long_outlined, title: 'Aucune commande', subtitle: 'Les commandes de ce client apparaîtront ici.'), const SizedBox(height: 16), FilledButton.icon(onPressed: () async { final ok = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => NewOrderScreen(preselectedClientId: c.id))); if (ok == true && mounted) setState(() {}); }, icon: const Icon(Icons.add_rounded), label: const Text('Créer une commande pour ce client'))]);
           return ListView.separated(
             padding: const EdgeInsets.all(18),
             itemCount: rows.length,

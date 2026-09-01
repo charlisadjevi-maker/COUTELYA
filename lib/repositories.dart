@@ -8,6 +8,28 @@ import 'models.dart';
 
 const _uuid = Uuid();
 
+class WorkshopRepository {
+  final dbProvider = LocalDatabase.instance;
+
+  Future<String> getName() async {
+    final db = await dbProvider.database;
+    final rows = await db.query('workshop_settings', where: 'key = ?', whereArgs: ['name'], limit: 1);
+    if (rows.isEmpty) return 'Atelier Élégance';
+    final value = (rows.first['value'] as String?)?.trim();
+    return value == null || value.isEmpty ? 'Atelier Élégance' : value;
+  }
+
+  Future<void> saveName(String name) async {
+    final value = name.trim().isEmpty ? 'Atelier Élégance' : name.trim();
+    final db = await dbProvider.database;
+    await db.insert('workshop_settings', {
+      'key': 'name',
+      'value': value,
+      'updated_at': DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+}
+
 class ClientRepository {
   final dbProvider = LocalDatabase.instance;
 

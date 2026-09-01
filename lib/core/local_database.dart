@@ -13,7 +13,7 @@ class LocalDatabase {
     final path = p.join(basePath, 'coutelya.db');
     _database = await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onConfigure: (db) async => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
@@ -102,6 +102,8 @@ class LocalDatabase {
     await db.execute('CREATE INDEX idx_orders_delivery ON orders(delivery_date)');
     await db.execute('CREATE INDEX idx_orders_status ON orders(status)');
     await db.execute('CREATE INDEX idx_payments_order ON payments(order_id)');
+    await db.execute('CREATE TABLE workshop_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)');
+    await db.insert('workshop_settings', {'key': 'name', 'value': 'Atelier Élégance', 'updated_at': DateTime.now().toIso8601String()});
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -112,6 +114,10 @@ class LocalDatabase {
       await _try(db, 'ALTER TABLE orders ADD COLUMN order_date TEXT');
       await _try(db, 'ALTER TABLE orders ADD COLUMN notes TEXT');
       await _try(db, 'CREATE INDEX idx_payments_order ON payments(order_id)');
+    }
+    if (oldVersion < 3) {
+      await _try(db, "CREATE TABLE workshop_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)");
+      await _try(db, "INSERT INTO workshop_settings (key, value, updated_at) VALUES ('name', 'Atelier Élégance', '${DateTime.now().toIso8601String()}')");
     }
   }
 
